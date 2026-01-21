@@ -32738,17 +32738,14 @@ async function run() {
 
     // Create session with Notion MCP server
     // The AI will have access to all Notion tools and decide which to use
-    // Use npx to ensure the MCP server is available on any runner
+    // Use shell wrapper to ensure NOTION_TOKEN is properly passed to npx subprocess
     session = await client.createSession({
       model,
       mcpServers: {
         notion: {
           type: 'local',
-          command: 'npx',
-          args: ['-y', '@notionhq/notion-mcp-server'],
-          env: {
-            NOTION_TOKEN: notionToken,
-          },
+          command: '/bin/sh',
+          args: ['-c', `NOTION_TOKEN=${notionToken} npx -y @notionhq/notion-mcp-server`],
           tools: ['*'], // Allow all Notion tools
         },
       },
@@ -32807,13 +32804,16 @@ Your response must be ONLY the page ID, nothing else. Example format: 1234567890
     });
 
     core.info(`📥 Full AI response object: ${JSON.stringify(searchResult)}`);
-    core.info(`📥 AI response content: ${searchResult.content}`);
+    
+    // Handle both SDK response formats: searchResult.content or searchResult.data.content
+    const responseContent = searchResult.content || (searchResult.data && searchResult.data.content) || '';
+    core.info(`📥 AI response content: ${responseContent}`);
 
     // Extract the changelog page ID from the AI response
-    const changelogPageId = extractPageId(searchResult.content);
+    const changelogPageId = extractPageId(responseContent);
 
     if (!changelogPageId) {
-      core.error(`AI response: ${searchResult.content}`);
+      core.error(`AI response: ${responseContent}`);
       core.setFailed('Failed to find or create Changelog page - could not extract page ID from AI response');
       return;
     }
