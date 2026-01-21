@@ -132,15 +132,14 @@ async function run() {
 
     // Create session with Notion MCP server
     // The AI will have access to all Notion tools and decide which to use
-    // Use notion-mcp-server directly (pre-installed globally in CI)
-    // Avoid shell wrappers that can cause stream lifecycle issues
+    // Use npx to ensure the MCP server is available on any runner
     session = await client.createSession({
       model,
       mcpServers: {
         notion: {
           type: 'local',
-          command: 'notion-mcp-server',
-          args: [],
+          command: 'npx',
+          args: ['-y', '@notionhq/notion-mcp-server'],
           env: {
             NOTION_TOKEN: notionToken,
           },
@@ -163,17 +162,25 @@ When updating documentation, preserve the existing structure and only update rel
     core.info('Searching for or creating Changelog page...');
 
     const searchResult = await session.sendAndWait({
-      prompt: `Search for a child page named "Changelog" under the page with ID "${notionPageId}".
-If you find it, respond with just its page ID.
-If you don't find it, create a new page titled "Changelog" as a child of page "${notionPageId}" and respond with the new page ID.
-Only respond with the page ID, nothing else.`,
+      prompt: `I need to find or create a "Changelog" page under the parent page with ID "${notionPageId}".
+
+First, try to retrieve the blocks/children of page "${notionPageId}" to see if there's already a child page named "Changelog".
+
+If you find a "Changelog" child page, respond with ONLY its page ID (32 characters, no dashes).
+
+If you don't find one, create a new page with title "Changelog" as a child of page "${notionPageId}", then respond with ONLY the new page ID (32 characters, no dashes).
+
+Your response must be ONLY the page ID, nothing else. Example format: 1234567890abcdef1234567890abcdef`,
     });
+
+    core.debug(`Changelog search result: ${searchResult.content}`);
 
     // Extract the changelog page ID from the AI response
     const changelogPageId = extractPageId(searchResult.content);
 
     if (!changelogPageId) {
-      core.setFailed('Failed to find or create Changelog page');
+      core.error(`AI response: ${searchResult.content}`);
+      core.setFailed('Failed to find or create Changelog page - could not extract page ID from AI response');
       return;
     }
 
