@@ -32741,6 +32741,7 @@ async function run() {
     // Use shell wrapper to ensure NOTION_TOKEN is properly passed to npx subprocess
     session = await client.createSession({
       model,
+      streaming: true, // Enable streaming for better responsiveness
       mcpServers: {
         notion: {
           type: 'local',
@@ -32760,6 +32761,9 @@ When updating documentation, preserve the existing structure and only update rel
     });
 
     core.info(`Copilot session created: ${session.sessionId}`);
+
+    // Timeout for AI operations (3 minutes to allow for complex Notion operations)
+    const AI_TIMEOUT = 180000;
 
     // Add event listener for debugging
     session.on((event) => {
@@ -32801,6 +32805,7 @@ Your response must be ONLY the page ID, nothing else. Example format: 1234567890
 
     const searchResult = await session.sendAndWait({
       prompt: changelogSearchPrompt,
+      timeout: AI_TIMEOUT,
     });
 
     core.info(`📥 Full AI response object: ${JSON.stringify(searchResult)}`);
@@ -32825,6 +32830,7 @@ Your response must be ONLY the page ID, nothing else. Example format: 1234567890
 
     await session.sendAndWait({
       prompt: buildChangelogPrompt(changelogEntry, changelogPageId),
+      timeout: AI_TIMEOUT,
     });
 
     core.info('Changelog entry added successfully');
@@ -32835,6 +32841,7 @@ Your response must be ONLY the page ID, nothing else. Example format: 1234567890
 
       await session.sendAndWait({
         prompt: buildDocUpdatePrompt(changelogEntry, notionPageId),
+        timeout: AI_TIMEOUT,
       });
 
       core.info('Main documentation page updated successfully');
