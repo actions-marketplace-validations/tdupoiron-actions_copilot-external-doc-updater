@@ -32764,6 +32764,17 @@ When updating documentation, preserve the existing structure and only update rel
 
     core.info(`Copilot session created: ${session.sessionId}`);
 
+    // Add event listener for debugging
+    session.on((event) => {
+      if (event.type === 'tool.execution_start') {
+        core.info(`🔧 AI calling tool: ${event.data.toolName}`);
+      } else if (event.type === 'tool.execution_end') {
+        core.info(`✅ Tool completed: ${event.data.toolName}`);
+      } else if (event.type === 'error') {
+        core.error(`❌ Session error: ${JSON.stringify(event.data)}`);
+      }
+    });
+
     // Step 1: Search for or create Changelog page
     core.info('Searching for or creating Changelog page...');
 
@@ -32779,7 +32790,7 @@ If you don't find one, create a new page with title "Changelog" as a child of pa
 Your response must be ONLY the page ID, nothing else. Example format: 1234567890abcdef1234567890abcdef`,
     });
 
-    core.debug(`Changelog search result: ${searchResult.content}`);
+    core.info(`Changelog search AI response: ${searchResult.content}`);
 
     // Extract the changelog page ID from the AI response
     const changelogPageId = extractPageId(searchResult.content);
