@@ -124,8 +124,10 @@ async function run() {
 
     core.info(`Initializing Copilot SDK with Notion MCP server (model: ${model})...`);
 
-    // Initialize Copilot client
-    client = new CopilotClient();
+    // Initialize Copilot client with extended timeout
+    client = new CopilotClient({
+      timeout: 300000, // 5 minutes
+    });
     await client.start();
 
     core.info('Copilot client started');
@@ -136,6 +138,7 @@ async function run() {
     session = await client.createSession({
       model,
       streaming: true, // Enable streaming for better responsiveness
+      timeout: 300000, // 5 minutes timeout for session operations
       mcpServers: {
         notion: {
           type: 'local',
@@ -155,6 +158,11 @@ When updating documentation, preserve the existing structure and only update rel
     });
 
     core.info(`Copilot session created: ${session.sessionId}`);
+
+    // Give MCP server time to fully initialize before sending prompts
+    core.info('Waiting for MCP server to initialize...');
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    core.info('MCP server should be ready');
 
     // Timeout for AI operations (5 minutes to allow for complex Notion operations)
     const AI_TIMEOUT = 300000;
