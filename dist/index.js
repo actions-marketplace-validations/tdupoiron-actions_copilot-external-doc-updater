@@ -32765,7 +32765,18 @@ When updating documentation, preserve the existing structure and only update rel
     // Timeout for AI operations (5 minutes to allow for complex Notion operations)
     const AI_TIMEOUT = 300000;
 
-    // Add event listener for debugging
+    // Helper function to wrap sendAndWait with a custom timeout
+    const sendWithTimeout = async (prompt, timeoutMs = AI_TIMEOUT) => {
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`Custom timeout after ${timeoutMs}ms`)), timeoutMs);
+      });
+      return Promise.race([
+        session.sendAndWait({ prompt }),
+        timeoutPromise,
+      ]);
+    };
+
+    // Add event listener for debugging - only log tool calls and errors
     session.on((event) => {
       if (event.type === 'tool.execution_start') {
         core.info(`🔧 AI calling tool: ${event.data.toolName}`);
@@ -32777,15 +32788,10 @@ When updating documentation, preserve the existing structure and only update rel
         if (event.data.output) {
           core.info(`   Output: ${JSON.stringify(event.data.output).substring(0, 500)}`);
         }
-      } else if (event.type === 'assistant.message_delta') {
-        // Log streaming response chunks
-        core.info(`📝 AI response chunk: ${event.data.deltaContent}`);
       } else if (event.type === 'error') {
         core.error(`❌ Session error: ${JSON.stringify(event.data)}`);
-      } else {
-        // Log all other events for debugging
-        core.info(`📌 Event: ${event.type}`);
       }
+      // Ignore other events (pending_messages.modified, assistant.message_delta, etc.)
     });
 
     // Step 1: Search for or create Changelog page
@@ -32803,10 +32809,7 @@ Your response must be ONLY the page ID, nothing else. Example format: 1234567890
 
     core.info(`📤 Sending prompt:\n${changelogSearchPrompt}`);
 
-    const searchResult = await session.sendAndWait({
-      prompt: changelogSearchPrompt,
-      timeout: AI_TIMEOUT,
-    });
+    const searchResult = await sendWithTimeout(changelogSearchPrompt);
 
     core.info(`📥 Full AI response object: ${JSON.stringify(searchResult)}`);
     
@@ -32828,10 +32831,11 @@ Your response must be ONLY the page ID, nothing else. Example format: 1234567890
     // Step 2: Append changelog entry using AI
     core.info('Appending changelog entry...');
 
-    await session.sendAndWait({
-      prompt: buildChangelogPrompt(changelogEntry, changelogPageId),
-      timeout: AI_TIMEOUT,
-    });
+    const changelogPrompt = buildChangelogPrompt(changelogEntry, changelogPageId);
+    core.info(`📤 Sending changelog prompt:\n${changelogPrompt}`);
+
+    const changelogResult = await sendWithTimeout(changelogPrompt);
+    core.info(`📥 Changelog AI response: ${changelogResult.content || (changelogResult.data && changelogResult.data.content) || ''}`);
 
     core.info('Changelog entry added successfully');
 
@@ -32839,10 +32843,11 @@ Your response must be ONLY the page ID, nothing else. Example format: 1234567890
     if (updateMode !== 'changelog-only' && changelogEntry.docContent && changelogEntry.hasReadme) {
       core.info('Updating main documentation page...');
 
-      await session.sendAndWait({
-        prompt: buildDocUpdatePrompt(changelogEntry, notionPageId),
-        timeout: AI_TIMEOUT,
-      });
+      const docPrompt = buildDocUpdatePrompt(changelogEntry, notionPageId);
+      core.info(`📤 Sending doc update prompt:\n${docPrompt.substring(0, 500)}...`);
+
+      const docResult = await sendWithTimeout(docPrompt);
+      core.info(`📥 Doc update AI response: ${docResult.content || (docResult.data && docResult.data.content) || ''}`);
 
       core.info('Main documentation page updated successfully');
     } else if (updateMode !== 'changelog-only') {
