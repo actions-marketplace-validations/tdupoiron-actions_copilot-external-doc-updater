@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@vercel/ncc": "^0.38.1",
-    "dotenv": "^17.2.3",
+    "dotenv": "^17.3.1",
     "jest": "^30.2.0"
   }
 }
